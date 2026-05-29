@@ -37,6 +37,15 @@ export const seededCounterparties = counterpartySchema.array().parse([
     network: "Spot GPU desk",
     externalRef: "venue:HARBOR-B200",
   },
+  {
+    id: "cp_stallion_labs",
+    displayName: "Stallion Labs",
+    type: "workspace",
+    riskTier: "high",
+    status: "blocked",
+    network: "Suspended desk",
+    externalRef: "hold:STL-991",
+  },
 ] satisfies Counterparty[]);
 
 export const seededRails = settlementRailSchema.array().parse([
@@ -162,6 +171,18 @@ export const scenarioPresets = [
     label: "No dependencies yet",
     counterpartyIds: [],
     railIds: [],
+  },
+  {
+    id: "pending-validation",
+    label: "In progress (pending desk)",
+    counterpartyIds: ["cp_orchid_agents"],
+    railIds: ["rail_wire_ops"],
+  },
+  {
+    id: "blocked-counterparty",
+    label: "Blocked counterparty",
+    counterpartyIds: ["cp_stallion_labs"],
+    railIds: ["rail_operating_usdc", "rail_agent_credits"],
   },
 ] as const;
 

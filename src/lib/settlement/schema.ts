@@ -100,7 +100,9 @@ export const settlementReceiptSchema = settlementIntentSchema.extend({
 
 export type Counterparty = z.infer<typeof counterpartySchema>;
 export type CounterpartyType = z.infer<typeof counterpartyTypeSchema>;
+export type CounterpartyStatus = z.infer<typeof counterpartyStatusSchema>;
 export type SettlementRail = z.infer<typeof settlementRailSchema>;
+export type RailStatus = z.infer<typeof railStatusSchema>;
 export type RailType = z.infer<typeof railTypeSchema>;
 export type UsageEvidence = z.infer<typeof usageEvidenceSchema>;
 export type BenchmarkQuote = z.infer<typeof benchmarkQuoteSchema>;

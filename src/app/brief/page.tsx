@@ -51,6 +51,8 @@ export default function BriefPage() {
             <li>missing-counterparty — onboard inside dialog</li>
             <li>missing-rail — attach rail inside dialog</li>
             <li>empty — both resolved in-flow</li>
+            <li>pending-validation — desk clearance required (simulate in dialog)</li>
+            <li>blocked-counterparty — risk hold, cannot settle</li>
             <li>expedited + amount &gt; $1,500 — simulated failure</li>
           </ul>
         </div>

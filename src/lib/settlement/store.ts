@@ -15,6 +15,7 @@ import {
   settlementRailSchema,
   type BenchmarkQuote,
   type Counterparty,
+  type CounterpartyStatus,
   type CounterpartyType,
   type RailType,
   type SettlementIntent,
@@ -47,7 +48,9 @@ type StoreState = {
   receipts: SettlementReceipt[];
   draft: Draft;
   lastError: string | null;
+  clearedDependencyIds: string[];
   setScenario: (scenarioId: ScenarioId) => void;
+  clearDependency: (id: string) => void;
   setStep: (step: FlowStep, direction?: 1 | -1) => void;
   updateDraft: (patch: Partial<Draft>) => void;
   addCounterparty: (input: {
@@ -95,7 +98,28 @@ const scenarioAvailability: Record<ScenarioId, { counterpartyIds: string[]; rail
     counterpartyIds: [],
     railIds: [],
   },
+  "pending-validation": {
+    counterpartyIds: ["cp_orchid_agents"],
+    railIds: ["rail_wire_ops"],
+  },
+  "blocked-counterparty": {
+    counterpartyIds: ["cp_stallion_labs"],
+    railIds: ["rail_operating_usdc", "rail_agent_credits"],
+  },
 };
+
+export function effectiveCounterpartyStatus(
+  counterparty: Counterparty,
+  clearedIds: string[],
+): CounterpartyStatus {
+  if (clearedIds.includes(counterparty.id)) return "verified";
+  return counterparty.status;
+}
+
+export function effectiveRailStatus(rail: SettlementRail, clearedIds: string[]): SettlementRail["status"] {
+  if (clearedIds.includes(rail.id)) return "ready";
+  return rail.status;
+}
 
 export const useSettlementStore = create<StoreState>()(
   persist(
@@ -112,6 +136,7 @@ export const useSettlementStore = create<StoreState>()(
       receipts: [],
       draft: initialDraft,
       lastError: null,
+      clearedDependencyIds: [],
       setScenario: (scenarioId) => {
         const availability = scenarioAvailability[scenarioId];
         set({
@@ -119,13 +144,22 @@ export const useSettlementStore = create<StoreState>()(
           step: "compose",
           direction: 1,
           lastError: null,
+          clearedDependencyIds: [],
           draft: {
             ...get().draft,
             counterpartyId: availability.counterpartyIds[0] ?? "",
             railId: availability.railIds[0] ?? "",
+            reviewMode: scenarioId === "pending-validation" ? "manual_review" : get().draft.reviewMode,
           },
         });
       },
+      clearDependency: (id) =>
+        set({
+          clearedDependencyIds: get().clearedDependencyIds.includes(id)
+            ? get().clearedDependencyIds
+            : [...get().clearedDependencyIds, id],
+          lastError: null,
+        }),
       setStep: (step, direction = 1) => set({ step, direction, lastError: null }),
       updateDraft: (patch) => set({ draft: { ...get().draft, ...patch }, lastError: null }),
       addCounterparty: (input) => {
@@ -179,10 +213,40 @@ export const useSettlementStore = create<StoreState>()(
         }
 
         const { counterparty, rail } = selectResolvedDependencies(get());
+        const cleared = get().clearedDependencyIds;
         if (!counterparty) return { ok: false, message: "Resolve a counterparty before review." };
         if (!rail) return { ok: false, message: "Resolve a settlement rail before review." };
-        if (counterparty.status === "blocked") return { ok: false, message: "Counterparty is blocked." };
-        if (rail.status === "suspended") return { ok: false, message: "Settlement rail is suspended." };
+
+        const cpStatus = effectiveCounterpartyStatus(counterparty, cleared);
+        const railStatus = effectiveRailStatus(rail, cleared);
+
+        if (cpStatus === "blocked") {
+          return { ok: false, message: "Counterparty is blocked by risk desk." };
+        }
+        if (cpStatus === "pending_review") {
+          return {
+            ok: false,
+            message: "Counterparty verification in progress — simulate desk clearance or use manual review.",
+          };
+        }
+        if (cpStatus === "missing_evidence") {
+          return { ok: false, message: "Usage evidence chain incomplete for this counterparty." };
+        }
+        if (railStatus === "suspended") {
+          return { ok: false, message: "Settlement rail is suspended." };
+        }
+        if (railStatus === "requires_approval") {
+          return {
+            ok: false,
+            message: "Wire rail pending ops approval — simulate clearance to continue.",
+          };
+        }
+        if (railStatus === "requires_microdeposit") {
+          return {
+            ok: false,
+            message: "Bank rail awaiting microdeposit verification.",
+          };
+        }
         if (result.data.amountCents > rail.availableCents) {
           return { ok: false, message: "Amount exceeds available rail balance." };
         }
@@ -235,6 +299,7 @@ export const useSettlementStore = create<StoreState>()(
         localCounterparties: state.localCounterparties,
         localRails: state.localRails,
         receipts: state.receipts,
+        clearedDependencyIds: state.clearedDependencyIds,
       }),
     },
   ),

@@ -40,7 +40,7 @@ The tone should be closer to a market terminal, developer console, and finance o
 
 ## Competition
 
-This repo is the Codex track in a design/development bakeoff against Cursor agent. The goal is to produce the better designed and better engineered prototype.
+This repo is the Cursor track in a design/development bakeoff against Codex. The goal is to produce the better designed and better engineered prototype.
 
 Evaluation priorities:
 

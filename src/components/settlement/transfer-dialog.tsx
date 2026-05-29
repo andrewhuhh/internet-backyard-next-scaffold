@@ -35,8 +35,11 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { scenarioPresets } from "@/lib/settlement/seed";
+import { CounterpartyStatusChip, RailStatusChip } from "@/components/settlement/status-chip";
 import {
   cents,
+  effectiveCounterpartyStatus,
+  effectiveRailStatus,
   selectAvailableCounterparties,
   selectAvailableRails,
   selectResolvedDependencies,
@@ -147,9 +150,48 @@ function ComposePanel() {
   const validation = state.validateDraft();
   const missingRecipient = recipients.length === 0 || !counterparty;
   const missingFunding = fundingSources.length === 0 || !rail;
+  const cleared = state.clearedDependencyIds;
+  const cpEffective = counterparty ? effectiveCounterpartyStatus(counterparty, cleared) : null;
+  const railEffective = rail ? effectiveRailStatus(rail, cleared) : null;
+  const needsCpClearance =
+    counterparty && cpEffective !== "verified" && !cleared.includes(counterparty.id);
+  const needsRailClearance = rail && railEffective !== "ready" && !cleared.includes(rail.id);
 
   return (
     <div className="space-y-5">
+      {(needsCpClearance || needsRailClearance) && (
+        <Alert className="border-[#c49a6c]/35 bg-[#c49a6c]/10 text-[#f2ebe0]">
+          <AlertCircle className="size-4 text-[#c49a6c]" />
+          <AlertDescription className="space-y-2">
+            <p>Dependency validation in progress.</p>
+            <div className="flex flex-wrap gap-2">
+              {needsCpClearance && counterparty && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 border-[#3a4038] text-xs"
+                  onClick={() => state.clearDependency(counterparty.id)}
+                >
+                  Simulate counterparty clearance
+                </Button>
+              )}
+              {needsRailClearance && rail && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 border-[#3a4038] text-xs"
+                  onClick={() => state.clearDependency(rail.id)}
+                >
+                  Simulate rail clearance
+                </Button>
+              )}
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {(missingRecipient || missingFunding) && (
         <Alert className="border-[#c49a6c]/35 bg-[#c49a6c]/10 text-[#f2ebe0]">
           <AlertCircle className="size-4 text-[#c49a6c]" />
@@ -184,9 +226,13 @@ function ComposePanel() {
               </SelectContent>
             </Select>
             {counterparty && (
-              <QuietMeta>
-                {counterparty.status.replaceAll("_", " ")} · {counterparty.externalRef}
-              </QuietMeta>
+              <div className="flex flex-wrap items-center gap-2">
+                <CounterpartyStatusChip
+                  status={counterparty.status}
+                  cleared={cleared.includes(counterparty.id)}
+                />
+                <QuietMeta>{counterparty.externalRef}</QuietMeta>
+              </div>
             )}
           </div>
         ) : (
@@ -226,7 +272,14 @@ function ComposePanel() {
                 ))}
               </SelectContent>
             </Select>
-            {rail && <QuietMeta>{cents(rail.availableCents)} available · {rail.settlementWindow}</QuietMeta>}
+            {rail && (
+              <div className="flex flex-wrap items-center gap-2">
+                <RailStatusChip status={rail.status} cleared={cleared.includes(rail.id)} />
+                <QuietMeta>
+                  {cents(rail.availableCents)} available · {rail.settlementWindow}
+                </QuietMeta>
+              </div>
+            )}
           </div>
         ) : (
           <AddInline
@@ -350,7 +403,7 @@ function ComposePanel() {
         </Button>
         <Button
           className="border border-[#c49a6c]/40 bg-[#c49a6c]/20 text-[#f2ebe0] hover:bg-[#c49a6c]/30"
-          disabled={missingRecipient || missingFunding}
+          disabled={missingRecipient || missingFunding || !validation.ok}
           onClick={() => {
             const result = state.validateDraft();
             if (result.ok) state.setStep("review");
